@@ -1,119 +1,132 @@
-ABM Replication – Active Buffer Management in Datacenters
+Environment Setup (IMPORTANT)
+
+This project is designed to run inside the P4 Tutorials Virtual Machine environment.
+
+Required Environment
+P4 Tutorials VM (Ubuntu-based)
+Mininet (pre-installed)
+Python3
+Open vSwitch (OVS)
+Linux tc (traffic control)
+
+This project is built and tested in the P4 VM environment and may not work correctly outside of it without additional setup.
 
 Introduction
 
-Modern datacenter networks rely on shared buffer architectures within switches to absorb bursts and prevent packet loss. Traditional approaches separate Buffer Management (BM), which controls how buffer space is allocated across queues, and Active Queue Management (AQM), which controls when packets are admitted or dropped. While effective in isolation, this separation leads to poor coordination, increased queueing delay, lack of isolation between traffic, and unpredictable behavior under bursty workloads.
+Modern datacenter networks rely on shared buffer architectures within switches to absorb bursts and prevent packet loss. Traditional approaches separate Buffer Management (BM) and Active Queue Management (AQM), which can lead to poor coordination and increased latency under bursty workloads.
 
-The paper “ABM: Active Buffer Management in Datacenters” proposes a unified approach that combines both perspectives. ABM dynamically adjusts queue thresholds using both total buffer occupancy and per-queue drain time, allowing it to better handle incast traffic and reduce tail latency without sacrificing throughput.
+The paper:
 
-This work is important because modern datacenter traffic is increasingly bursty, and traditional buffering strategies struggle to maintain performance as link speeds increase and buffers become relatively smaller.
+“ABM: Active Buffer Management in Datacenters” (SIGCOMM 2022)
+
+proposes a unified approach that dynamically adjusts queue thresholds based on:
+
+total buffer occupancy
+per-queue drain rate
+
+This allows better handling of incast traffic and reduces tail latency.
 
 Target Result / Claim
 
-The result we chose to replicate is:
+We replicate the core claim:
 
-ABM significantly improves the 99th percentile Flow Completion Time (FCT) for bursty/incast traffic under moderate to high network load, without reducing throughput.
+ABM reduces tail Flow Completion Time (FCT) under bursty/incast traffic without reducing throughput.
 
-We selected this claim because:
-- It is the central result of the paper
-- It clearly demonstrates the benefit of ABM over existing approaches like Dynamic Thresholds (DT)
-- It is measurable in a Mininet environment using traffic generation and timing
-
-Our goal is not to exactly reproduce the numerical values from the paper, but to replicate the trend:
-- Baseline buffering leads to rapidly increasing FCT under load
-- ABM leads to more stable FCT under the same conditions
+Our goal is to reproduce the trend, not exact numerical values.
 
 Methodology from the Paper
 
-The original paper evaluates ABM using large-scale simulation (NS-3) with a datacenter-style leaf-spine topology.
+The original paper uses:
 
-Key characteristics:
-- Shared-memory switch buffers
-- 10 Gbps links with controlled delay
-- Multiple queues per port
-- Workloads include background web-search traffic and incast traffic
-- Metrics include 99th percentile FCT, buffer occupancy, and throughput
+ns-3 simulation (C++)
+hardware-like shared buffer model
+datacenter leaf-spine topology
+realistic workloads
 
-ABM dynamically computes queue thresholds based on remaining buffer space, number of congested queues, and queue drain rate.
+Metrics:
 
-Our Methodology (Mininet Implementation)
+99th percentile FCT
+queue occupancy
+throughput
+Our Methodology (Mininet – P4 VM)
 
-We implemented an approximation of ABM using Mininet due to hardware limitations.
+We implemented an approximation using:
 
-Environment:
-- Mininet with Linux-based software switches (OVS)
-- Simplified leaf-spine-inspired topology
-- Configurable bandwidth, delay, and queue sizes
+Mininet (inside P4 VM)
+Linux-based software switches (OVS)
+tc qdisc for queue management
+Topology
+Leaf-spine-inspired
+Bottleneck link:
+3 Mbps bandwidth
+queue size = 10 packets
+Traffic
+TCP background traffic (iperf3)
+Incast short flows using custom Python scripts
+ABM Approximation
+Periodically samples queue backlog
+Adjusts queue limits dynamically
+Uses control-plane logic instead of hardware data-plane
+Results
+Baseline
+High variation in Flow Completion Time
+Tail latency up to ~5600 ms
+Indicates congestion and unfairness
+ABM
+Slight reduction in tail latency
+Some stabilization of flow performance
+Improvements are modest
+Queue Behavior
 
-Traffic Model:
-- Background TCP traffic (iperf3) to simulate load levels from 20% to 80%
-- Incast traffic using multiple short flows starting simultaneously
+Observed:
 
-Compared Approaches:
-1. Baseline (Drop-Tail / DT-like)
-   - Static queue limits
-   - No dynamic behavior
+Queue mostly empty
+Occasional small spikes (e.g., 160 bytes / 2 packets)
 
-2. ABM Approximation
-   - Periodically samples queue statistics
-   - Estimates congestion and drain rate
-   - Dynamically adjusts queue thresholds using an ABM-inspired approach
+Indicates short-lived congestion rather than sustained queue buildup
 
-Metrics Collected:
-- Flow Completion Time (FCT)
-- 99th percentile FCT
-- Throughput
-- Queue occupancy
-
-Results and Comparison
-
-Original Paper Trend:
-- Baseline shows rapid FCT increase under load
-- ABM maintains stable FCT and reduces tail latency significantly
-
-Our Results:
-- Baseline shows increasing FCT and queue buildup
-- ABM approximation reduces tail FCT and stabilizes performance
-- Throughput remains similar across both approaches
-
+Comparison to Paper
+Aspect	Paper (ns-3)	Mininet (This Work)
+Queue buildup	Sustained	Minimal / short bursts
+Tail FCT improvement	Significant	Modest
+Environment	Hardware-like	Software-based
+Accuracy	High	Approximate
 Discussion
 
-Our results differ from the paper numerically due to:
-- Software-based buffering vs hardware shared-memory switches
-- Approximate measurement of queue occupancy and drain rate
-- Control-plane updates instead of real-time data-plane implementation
+Our results differ from the paper due to:
 
-Despite this, the observed trends match the paper’s conclusions.
+Software-based buffering vs hardware shared-memory switches
+Limited queue visibility using tc
+Coarse timing and sampling resolution
+Control-plane approximation instead of real-time hardware control
+
+Despite these differences:
+
+The conceptual behavior of ABM is still partially observed
 
 Lessons Learned
-
-- Buffer management plays a key role in tail latency performance
-- Combining buffer occupancy and drain rate improves congestion handling
-- Many networking algorithms assume hardware features not available in software environments
-- Control-plane approximations can still capture important system behavior
-
+Buffer management strongly impacts tail latency
+TCP vs UDP traffic significantly changes queue behavior
+Software environments (Mininet) differ from hardware simulations
+Measurement resolution affects observed results
+Replication requires understanding both theory and system limitations
 Conclusion
 
-We successfully replicated the core idea of ABM using a Mininet-based approximation. While exact behavior differs from the original paper, the trends align with the main claim:
+We successfully replicated the core concept of ABM:
 
-ABM reduces tail latency under bursty traffic without degrading throughput.
-
+ABM can improve flow completion time under congestion
+However, in Mininet, improvements are limited
+This highlights the importance of environment when evaluating networking algorithms
 Repository Contents
+Mininet topology (topo/)
+ABM controller (controller/)
+Traffic scripts (scripts/)
+Experiment runner
+Results (final CSV outputs)
+Reference
 
-- Mininet topology scripts
-- Traffic generation scripts
-- ABM approximation controller
-- Experiment automation scripts
-- Result data and plots
-- README documentation
-
-References
-
-Addanki et al., “ABM: Active Buffer Management in Datacenters,” SIGCOMM 2022.
-
-
-
-
+Addanki et al.,
+“ABM: Active Buffer Management in Datacenters”, SIGCOMM 2022
 
 
 
