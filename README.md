@@ -1,4 +1,4 @@
-Environment Setup (IMPORTANT)
+Environment Setup!
 
 This project is designed to run inside the P4 Tutorials Virtual Machine environment.
 
@@ -123,10 +123,6 @@ ABM controller (controller/)
 Traffic scripts (scripts/)
 Experiment runner
 Results (final CSV outputs)
-Reference
-
-Addanki et al.,
-“ABM: Active Buffer Management in Datacenters”, SIGCOMM 2022
 
 
 
