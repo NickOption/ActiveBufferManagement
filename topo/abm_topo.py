@@ -25,7 +25,7 @@ class ABMTopo(Topo):
         self.addLink(h5, s2, cls=TCLink, bw=100)
 
         # bottleneck/core links
-        self.addLink(s1, s3, cls=TCLink, bw=10, delay='5ms', max_queue_size=100)
-        self.addLink(s2, s3, cls=TCLink, bw=10, delay='5ms', max_queue_size=100)
+        self.addLink(s1, s3, cls=TCLink, bw=3, delay='5ms', max_queue_size=10)
+        self.addLink(s2, s3, cls=TCLink, bw=3, delay='5ms', max_queue_size=10)
 
 topos = {'abm': ABMTopo}

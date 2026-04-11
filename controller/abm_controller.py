@@ -55,24 +55,17 @@ def set_queue_limit(interface, limit_packets):
     subprocess.run(cmd, capture_output=True, text=True)
 
 
-def compute_abm_limit(current_backlog, min_limit=20, max_limit=200):
-    """
-    Very simple ABM-inspired heuristic.
 
-    Idea:
-    - If backlog is high, reduce the queue limit to prevent excessive queueing delay.
-    - If backlog is low, allow a somewhat larger limit so bursts can be absorbed.
 
-    This is intentionally simple and explainable for the report.
-    """
-    if current_backlog > 100:
-        return min_limit
-    elif current_backlog > 50:
-        return 50
-    elif current_backlog > 20:
-        return 100
+def compute_abm_limit(current_backlog, min_limit=10, max_limit=60):
+    if current_backlog > 20:
+        return 10
+    elif current_backlog > 10:
+        return 30
     else:
         return max_limit
+
+
 
 
 def main():

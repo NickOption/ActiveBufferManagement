@@ -15,4 +15,4 @@ SERVER_IP=$1
 BANDWIDTH=$2
 DURATION=$3
 
-iperf3 -c "$SERVER_IP" -u -b "$BANDWIDTH" -t "$DURATION"
+iperf3 -c "$SERVER_IP" -b "$BANDWIDTH" -t "$DURATION"

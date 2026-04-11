@@ -1,0 +1,13 @@
+sender,flow_id,flow_size_bytes,fct_ms
+h3,abm_flow2,1000000,108.34
+h4,abm_flow3,1000000,193.476
+h1,abm_flow0,1000000,1845.835
+h2,abm_flow1,1000000,3395.14
+h4,abm_flow3,1000000,149.075
+h3,abm_flow2,1000000,254.251
+h2,abm_flow1,1000000,1847.565
+h1,abm_flow0,1000000,3401.521
+h4,abm_flow3,1000000,120.495
+h3,abm_flow2,1000000,220.155
+h1,abm_flow0,1000000,1835.397
+h2,abm_flow1,1000000,3395.647

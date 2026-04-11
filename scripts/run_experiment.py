@@ -3,16 +3,11 @@
 """
 run_experiment.py
 
-Automates a simple ABM replication experiment in Mininet.
+Runs one Mininet experiment in either:
+- baseline mode: no ABM controller
+- abm mode: ABM-inspired controller enabled
 
-Experiment flow:
-1. Start short-flow server on receiver
-2. Start background traffic
-3. Optionally start ABM-inspired controller
-4. Launch multiple short-flow clients at nearly the same time (incast)
-5. Log FCT results to CSV
-
-This script is designed to be run from inside Mininet using host.cmd().
+This script writes results into the results/ folder using mode-specific names.
 """
 
 from mininet.net import Mininet
@@ -23,56 +18,66 @@ import time
 import os
 import sys
 
-# Import topology from your custom topology file
+# Import custom topology
 sys.path.append("topo")
 from abm_topo import ABMTopo
 
 
-def start_server(receiver):
+def start_server(receiver, server_log):
     """
     Start the short-flow server in the background on the receiver host.
     """
     receiver.cmd("pkill -f shortflow_server.py")
-    receiver.cmd("python3 scripts/shortflow_server.py > results/server.log 2>&1 &")
+    receiver.cmd(f"python3 scripts/shortflow_server.py > {server_log} 2>&1 &")
 
 
-def start_background_traffic(sender, receiver_ip, bandwidth="8M", duration=30):
+def start_background_traffic(sender, receiver_ip, bandwidth, duration, log_path):
     """
     Start one background traffic flow using iperf3.
     """
-    sender.cmd(f"./scripts/background_traffic.sh {receiver_ip} {bandwidth} {duration} > results/background_{sender.name}.log 2>&1 &")
+    sender.cmd(
+        f"./scripts/background_traffic.sh {receiver_ip} {bandwidth} {duration} "
+        f"> {log_path} 2>&1 &"
+    )
 
 
-def start_queue_logger(switch_interface):
+def start_queue_logger(switch_interface, queue_log):
     """
-    Start queue logging on the Mininet root namespace.
+    Start queue logging on the root namespace.
     """
-    os.system(f"python3 scripts/queue_logger.py {switch_interface} results/queue_log.csv 0.1 > /dev/null 2>&1 &")
+    os.system(
+        f"python3 scripts/queue_logger.py {switch_interface} {queue_log} 0.01 "
+        f"> /dev/null 2>&1 &"
+    )
 
 
-def start_abm_controller(switch_interface):
+def start_abm_controller(switch_interface, controller_log):
     """
-    Start the ABM-inspired controller on the specified interface.
+    Start the ABM-inspired controller.
     """
-    os.system(f"python3 controller/abm_controller.py {switch_interface} 0.1 > results/abm_controller.log 2>&1 &")
+    os.system(
+        f"python3 controller/abm_controller.py {switch_interface} 0.1 "
+        f"> {controller_log} 2>&1 &"
+    )
 
 
-def run_incast(senders, receiver_ip, flow_size=500000):
+def run_incast(senders, receiver_ip, flow_size, fct_csv, mode):
     """
-    Trigger multiple short flows at nearly the same time to create an incast-style burst.
+    Launch multiple short flows at nearly the same time.
     """
     flow_id = 0
     for host in senders:
         host.cmd(
             f"python3 scripts/shortflow_client.py {receiver_ip} 5001 {flow_size} "
-            f"{host.name} flow{flow_id} results/fct_results.csv > results/{host.name}_flow.log 2>&1 &"
+            f"{host.name} {mode}_flow{flow_id} {fct_csv} "
+            f"> results/{mode}_{host.name}_flow.log 2>&1 &"
         )
         flow_id += 1
 
 
 def cleanup():
     """
-    Kill background Python processes from earlier runs.
+    Kill background processes from earlier runs.
     """
     os.system("pkill -f shortflow_server.py")
     os.system("pkill -f queue_logger.py")
@@ -83,17 +88,36 @@ def cleanup():
 
 def main():
     """
-    Build the Mininet topology, run one experiment, then drop to CLI if needed.
+    Usage:
+        sudo python3 scripts/run_experiment.py baseline 4M
+        sudo python3 scripts/run_experiment.py abm 4M
     """
+    if len(sys.argv) != 3:
+        print("Usage: sudo python3 scripts/run_experiment.py <baseline|abm> <background_bandwidth>")
+        sys.exit(1)
+
+    mode = sys.argv[1].lower()
+    background_bw = sys.argv[2]
+
+    if mode not in ["baseline", "abm"]:
+        print("Mode must be either 'baseline' or 'abm'")
+        sys.exit(1)
+
     cleanup()
 
-    # Use OVSBridge and no controller because this experiment does not
-    # require an OpenFlow controller.
+    # Output files
+    fct_csv = f"results/{mode}_fct_results.csv"
+    queue_log = f"results/{mode}_queue_log.csv"
+    controller_log = f"results/{mode}_abm_controller.log"
+    server_log = f"results/{mode}_server.log"
+    bg1_log = f"results/{mode}_background_h1.log"
+    bg2_log = f"results/{mode}_background_h2.log"
+
     net = Mininet(
-    topo=ABMTopo(),
-    link=TCLink,
-    switch=OVSBridge,
-    controller=None
+        topo=ABMTopo(),
+        link=TCLink,
+        switch=OVSBridge,
+        controller=None
     )
     net.start()
 
@@ -103,35 +127,37 @@ def main():
     h4 = net.get("h4")
     h5 = net.get("h5")
 
-    # Receiver IP
     receiver_ip = h5.IP()
 
-    # Start short-flow server on the receiver
-    start_server(h5)
+    # Start server
+    start_server(h5, server_log)
     time.sleep(1)
 
-    # Start one or more background traffic sources
-    start_background_traffic(h1, receiver_ip, bandwidth="4M", duration=20)
-    start_background_traffic(h2, receiver_ip, bandwidth="4M", duration=20)
+    # Start background traffic
+    start_background_traffic(h1, receiver_ip, background_bw, 20, bg1_log)
+    start_background_traffic(h2, receiver_ip, background_bw, 20, bg2_log)
 
-    # Start queue logger on a likely bottleneck interface
-    # You may need to adjust this interface after checking Mininet link names.
-    start_queue_logger("s1-eth3")
+    # Adjust this if your bottleneck interface name is different
+    bottleneck_interface = "s1-eth3"
 
-    # Optional: enable ABM controller
-    # Comment this out for baseline runs.
-    start_abm_controller("s1-eth3")
+    # Start queue logger
+    start_queue_logger(bottleneck_interface, queue_log)
+
+    # Start controller only in ABM mode
+    if mode == "abm":
+        start_abm_controller(bottleneck_interface, controller_log)
 
     # Let background traffic stabilize
     time.sleep(3)
 
-    # Trigger incast-style short flows
-    run_incast([h1, h2, h3, h4], receiver_ip, flow_size=500000)
+    # Launch incast short flows
+    run_incast([h1, h2, h3, h4], receiver_ip, 1000000, fct_csv, mode)
 
-    # Wait for flows to finish
+    # Wait for flows to complete
     time.sleep(10)
 
-    print("Experiment completed. Check results/ directory for logs and CSV files.")
+    print(f"{mode.upper()} experiment completed.")
+    print("Check the results/ folder for CSV and log files.")
 
     CLI(net)
     net.stop()
