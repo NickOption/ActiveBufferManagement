@@ -2,7 +2,7 @@
 
 ## Environment Setup
 
-This project was built and tested inside the P4 Tutorials Virtual Machine.
+This project is designed to run inside the P4 Tutorials Virtual Machine.
 
 ### Requirements
 
@@ -12,46 +12,44 @@ This project was built and tested inside the P4 Tutorials Virtual Machine.
 * Open vSwitch (OVS)
 * Linux `tc` (traffic control)
 
-The experiments rely on this environment. Running outside of it may require additional setup and could produce different results.
+Note: This project was tested in the P4 VM environment. Running it outside may require additional setup.
 
 ---
 
 ## Project Structure
 
-* topo/ – Mininet topology definition
+* topo/ – Mininet topology
 * controller/ – ABM control logic
-* scripts/ – traffic generation and experiment runner
-* results/load_sweep/ – collected experiment data and final plots
-* plot_mininet_paper_style.py – script used to generate graphs
+* scripts/ – traffic generation + experiment runner
+* results/load_sweep/ – collected data + final graphs
+* plot_mininet_paper_style.py – plotting script
 
 ---
 
 ## Introduction
 
-Datacenter networks use shared buffers inside switches to handle bursts of traffic and prevent packet loss. Traditional approaches separate Buffer Management (BM) and Active Queue Management (AQM), which can lead to poor coordination during congestion.
+Datacenter networks use shared buffers to handle bursts of traffic. Traditional designs separate Buffer Management (BM) and Active Queue Management (AQM), which can lead to poor performance under congestion.
 
 The paper:
 
 **“ABM: Active Buffer Management in Datacenters” (SIGCOMM 2022)**
 
-proposes combining these into a unified approach. Instead of treating buffer allocation and queue management separately, ABM dynamically adjusts queue thresholds based on:
+proposes combining these into a single system. The main idea is to dynamically adjust queue thresholds based on:
 
-* total buffer occupancy
-* per-queue drain rate
+* total buffer usage
+* queue drain rate
 
-This improves how switches handle incast traffic and reduces tail latency.
+This improves performance during incast traffic and reduces tail latency.
 
 ---
 
 ## Target Result / Claim
 
-The main claim I focused on is:
+The result replicated in this project is:
 
-> ABM reduces tail Flow Completion Time (FCT) under bursty/incast traffic without reducing throughput.
+> ABM reduces tail Flow Completion Time (FCT) under incast traffic without reducing throughput.
 
-I chose this result because tail FCT is one of the most important performance metrics in datacenter networks, especially under incast scenarios where many flows compete for limited buffer space.
-
-The goal of this project was to reproduce the **trend**, not the exact numerical results from the paper.
+This result was chosen because tail FCT is a key metric in datacenter performance, especially when multiple flows compete for limited buffer space.
 
 ---
 
@@ -60,31 +58,31 @@ The goal of this project was to reproduce the **trend**, not the exact numerical
 The original paper uses:
 
 * ns-3 simulation
-* a hardware-like shared-memory buffer model
-* a datacenter leaf-spine topology
-* realistic traffic workloads
+* shared-memory buffer model
+* leaf-spine topology
+* realistic workloads
 
-In their model, all queues share a common buffer pool and dynamically compete for space.
+All queues share a common buffer pool and dynamically compete for space.
 
-They evaluate performance using:
+Metrics:
 
-* 99th percentile (tail) FCT
+* tail (99th percentile) FCT
 * queue occupancy
 * throughput
 
 ---
 
-## My Methodology (Mininet Approximation)
+## My Methodology (Mininet)
 
-I implemented a simplified version of the system using:
+This project implements a simplified version using:
 
 * Mininet inside the P4 VM
-* Linux-based software switches (OVS)
-* `tc qdisc` for queue behavior
+* OVS software switches
+* Linux `tc` for queue behavior
 
 ### Topology
 
-* Leaf-spine-inspired topology
+* Leaf-spine-inspired
 * Bottleneck link:
 
   * 3 Mbps bandwidth
@@ -92,118 +90,127 @@ I implemented a simplified version of the system using:
 
 ### Traffic
 
-* TCP background traffic using `iperf3`
-* Short incast flows using custom Python scripts
+* TCP background traffic (iperf3)
+* Short incast flows (Python scripts)
 
 ### ABM Approximation
 
-* Periodically samples queue backlog
-* Adjusts queue limits dynamically
-* Implemented in the control plane rather than hardware
+* Periodically reads queue backlog
+* Adjusts queue limits
+* Implemented in control plane
 
 ---
 
 ## Key Differences from the Paper
 
 * No shared-memory buffer (uses Linux `tc`)
-* No direct visibility into hardware queue state
-* Control-plane approximation instead of data-plane implementation
-* Lower timing precision compared to ns-3
+* No hardware-level queue visibility
+* Control-plane approximation instead of hardware implementation
+* Lower timing accuracy
 
-Because of these differences, this implementation should be viewed as an approximation rather than a full reproduction.
-
----
-
-## Results
-
-### Baseline (DropTail)
-
-* Large variation in Flow Completion Time
-* Tail latency up to ~5600 ms
-* Indicates congestion and uneven flow performance
-
-### ABM
-
-* Slight reduction in tail latency
-* Some stabilization of flow behavior
-* Improvements are present but limited
-
-To better match the evaluation style of the paper, I ran experiments at multiple load levels (4M, 8M, 10M) and plotted tail FCT versus load.
-
-Final results are shown in:
-
-* `results/load_sweep/mininet_paper_style_3panel.png`
-
----
-
-## Queue Behavior
-
-Observed behavior:
-
-* Queue is mostly empty
-* Occasional short spikes (e.g., ~160 bytes / 2 packets)
-
-This indicates that congestion is short-lived rather than sustained, which limits how effective ABM can be in this environment.
-
----
-
-## Comparison to the Paper
-
-| Aspect               | Paper (ns-3)  | This Work (Mininet) |
-| -------------------- | ------------- | ------------------- |
-| Queue buildup        | Sustained     | Minimal / bursty    |
-| Tail FCT improvement | Significant   | Modest              |
-| Environment          | Hardware-like | Software-based      |
-| Accuracy             | High          | Approximate         |
-
----
-
-## Discussion
-
-The results only partially match the paper.
-
-ABM does not show strong improvements in this environment, mainly because:
-
-* queues do not stay full long enough
-* congestion is not sustained
-* Mininet does not replicate shared-memory buffering
-
-These limitations make it harder for ABM to have a noticeable effect.
-
-However, the overall behavior still supports the idea that buffer-aware management can influence flow performance.
-
----
-
-## Lessons Learned
-
-* Buffer management plays a major role in tail latency
-* TCP traffic is necessary to create realistic congestion
-* Mininet behaves very differently from real hardware
-* Measurement resolution can hide short bursts of congestion
-* Replication requires understanding both the algorithm and the system
-
-This project showed that implementing the idea is only part of the challenge — the environment has a huge impact on the results.
-
----
-
-## Conclusion
-
-This project successfully replicated the core idea of ABM:
-
-* ABM can improve flow completion time under congestion
-* In this Mininet-based setup, improvements are limited
-* Results depend heavily on the experimental environment
-
-Overall, this reinforces the importance of realistic system modeling when evaluating networking algorithms.
+This means the implementation is an approximation of the original system.
 
 ---
 
 ## How to Run
 
+### Clean environment
+
+```bash
+sudo mn -c
+```
+
+### Run baseline (DropTail)
+
 ```bash
 sudo python3 scripts/run_experiment.py baseline 10M
+```
+
+### Run ABM
+
+```bash
 sudo python3 scripts/run_experiment.py abm 10M
 ```
+
+---
+
+## Results
+
+### Baseline
+
+* Large variation in FCT
+* Tail latency up to ~5600 ms
+
+### ABM
+
+* Slight reduction in tail latency
+* More stable flow behavior
+
+Load tests were performed at:
+
+* 4M
+* 8M
+* 10M
+
+Final graph:
+
+* results/load_sweep/mininet_paper_style_3panel.png
+
+---
+
+## Queue Behavior
+
+Observed:
+
+* Queue mostly empty
+* Small spikes (e.g., ~160 bytes / 2 packets)
+
+This indicates short-lived congestion rather than sustained queue buildup.
+
+---
+
+## Comparison to Paper
+
+| Aspect               | Paper         | This Work   |
+| -------------------- | ------------- | ----------- |
+| Queue buildup        | Sustained     | Minimal     |
+| Tail FCT improvement | Large         | Small       |
+| Environment          | Hardware-like | Software    |
+| Accuracy             | High          | Approximate |
+
+---
+
+## Discussion
+
+Results differ from the paper because:
+
+* queues do not stay full long enough
+* congestion is not sustained
+* Mininet does not replicate shared buffers
+
+Because of this, ABM does not show strong improvements.
+
+However, the general idea of buffer-aware control is still visible.
+
+---
+
+## Lessons Learned
+
+* Buffer management affects tail latency
+* TCP is required for realistic congestion
+* Mininet behaves differently from hardware
+* Measurement resolution matters
+* Environment strongly impacts results
+
+---
+
+## Conclusion
+
+This project replicates the main idea of ABM:
+
+* ABM can improve flow completion time
+* In Mininet, improvements are limited
+* Results depend heavily on the environment
 
 ---
 
@@ -212,4 +219,4 @@ sudo python3 scripts/run_experiment.py abm 10M
 * topo/ – topology
 * controller/ – ABM logic
 * scripts/ – experiment tools
-* results/ – collected data and plots
+* results/ – data + graphs
