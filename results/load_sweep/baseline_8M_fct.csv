@@ -1,0 +1,5 @@
+sender,flow_id,flow_size_bytes,fct_ms
+h3,baseline_flow2,1000000,115.819
+h4,baseline_flow3,1000000,178.21
+h1,baseline_flow0,1000000,3051.001
+h2,baseline_flow1,1000000,5633.216

@@ -57,11 +57,11 @@ def set_queue_limit(interface, limit_packets):
 
 
 
-def compute_abm_limit(current_backlog, min_limit=10, max_limit=60):
-    if current_backlog > 20:
-        return 10
-    elif current_backlog > 10:
+def compute_abm_limit(current_backlog, min_limit=20, max_limit=100):
+    if current_backlog > 15:
         return 30
+    elif current_backlog > 5:
+        return 60
     else:
         return max_limit
 
